@@ -516,10 +516,17 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
+	struct list_elem *e;
+	struct thread* t;
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else{
+		e = list_max(&ready_list, less_priority, NULL);
+    t = list_entry (e, struct thread, elem);
+		list_remove(e);
+    return t;
+    //return list_entry (list_pop_front(&ready_list), struct thread, elem);
+	}
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -608,3 +615,15 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* return less priority */
+bool less_priority(const struct list_elem *a,
+									const struct list_elem *b,
+									void *aux UNUSED){
+	struct thread* t_a;
+	struct thread* t_b;
+
+	t_a = list_entry(a, struct thread, elem);
+	t_b = list_entry(b, struct thread, elem);
+	return t_a->priority < t_b->priority;
+}
