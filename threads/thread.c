@@ -24,6 +24,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+
+/* List for blocked process */
+static struct list blocked_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -91,6 +95,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+	list_init (&blocked_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -123,6 +128,8 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+	struct list_elem* e;
+	struct thread *t_i;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -133,6 +140,17 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+	for(e = list_begin(&blocked_list); e != list_end(&blocked_list) ;
+			e = list_next(e)){
+		t_i = list_entry(e, struct thread, elem);
+		ASSERT(t_i->sleep_time > 0);
+		if(--t_i->sleep_time == 0){
+			e = list_prev(list_remove(e));
+			thread_unblock(t_i);
+		}
+
+	}
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -221,10 +239,15 @@ thread_create (const char *name, int priority,
 void
 thread_block (void) 
 {
+	struct thread *t = thread_current();
+
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
+	if (t->sleep_time > 0){
+		list_push_back(&blocked_list, &t->elem);
+	}
 
-  thread_current ()->status = THREAD_BLOCKED;
+  t->status = THREAD_BLOCKED;
   schedule ();
 }
 
