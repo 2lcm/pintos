@@ -139,8 +139,13 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+<<<<<<< HEAD
 bool less_priority(const struct list_elem*,
 									const struct list_elem*,
 									void*);
+=======
+list_less_func less_priority;
+char* show_ready_list(void);
+>>>>>>> redo
 
 #endif /* threads/thread.h */
