@@ -31,6 +31,7 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include <debug.h>
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -68,7 +69,8 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
+      //list_push_back (&sema->waiters, &thread_current ()->elem);
+			list_insert_ordered(&sema->waiters, &thread_current()->elem, less_priority, NULL);
       thread_block ();
     }
   sema->value--;
@@ -109,14 +111,22 @@ void
 sema_up (struct semaphore *sema) 
 {
   enum intr_level old_level;
+	struct list_elem* e;
+	struct thread* t;
 
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
+  if (!list_empty (&sema->waiters)){ 
+		e = list_pop_back (&sema->waiters);
+		t = list_entry(e, struct thread, elem);
+		thread_unblock(t);
+	/*	thread_unblock (list_entry (list_pop_back (&sema->waiters),
                                 struct thread, elem));
-  sema->value++;
+																*/
+	}
+  sema->value ++;
+	thread_yield();
   intr_set_level (old_level);
 }
 
@@ -311,14 +321,40 @@ cond_wait (struct condition *cond, struct lock *lock)
 void
 cond_signal (struct condition *cond, struct lock *lock UNUSED) 
 {
+	struct list_elem* e;
+	struct list_elem* e_e;
+	struct semaphore_elem* e_sema_elem;
+	struct semaphore* e_sema;
+	struct thread* e_e_t;
+	int e_pri;
+	struct list_elem* max_e;
+	struct semaphore* max_sema;
+	int max_pri = PRI_MIN;
+
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters)) 
-    sema_up (&list_entry (list_pop_front (&cond->waiters),
-                          struct semaphore_elem, elem)->semaphore);
+	// find highest priority thread
+  if (!list_empty (&cond->waiters)){
+		
+		for(e = list_begin(&cond->waiters); e != list_end(&cond->waiters); e = list_next(e)){
+			e_sema_elem = list_entry(e, struct semaphore_elem, elem);
+			e_sema = &e_sema_elem->semaphore;
+			e_e = list_back(&e_sema->waiters);
+			e_e_t = list_entry(e_e, struct thread, elem);
+			e_pri = e_e_t->priority;
+
+			if(max_pri < e_pri){
+				max_pri = e_pri;
+				max_sema = e_sema;
+				max_e = e;
+			}
+		}
+		sema_up(max_sema);
+		list_remove(max_e);
+	}
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

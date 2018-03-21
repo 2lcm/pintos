@@ -615,10 +615,30 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
+
+/* hel[er function */
 bool less_priority(const struct list_elem *a,
 									const struct list_elem *b, void* aux UNUSED){
 	struct thread* t_a = list_entry(a, struct thread, elem);
 	struct thread* t_b = list_entry(b, struct thread, elem);
 
 	return t_a->priority <= t_b->priority;
+}
+
+/* Show all threads in given list  */
+char* show_ready_list(void){
+	struct list_elem* e;
+	struct thread* t;
+	char ret[100];
+	int j = 0;
+
+	j = snprintf(ret, 20,"head --> ");
+	for(e = list_begin(&ready_list) ; e != list_end(&ready_list) ; e = list_next(e)){
+		t = list_entry(e, struct thread, elem);
+		j += snprintf(ret+j, 20, "%s --> ", t->name);
+	}
+	j = snprintf(ret+j, 20, "tail\n");
+
+	return ret;
+
 }

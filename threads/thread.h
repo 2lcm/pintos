@@ -140,5 +140,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 list_less_func less_priority;
+char* show_ready_list(void);
 
 #endif /* threads/thread.h */
