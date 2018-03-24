@@ -273,8 +273,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  //list_push_back (&ready_list, &t->elem);
-  list_insert_ordered (&ready_list, &t->elem, less_priority, NULL);
+  list_push_back (&ready_list, &t->elem);
+  //list_insert_ordered (&ready_list, &t->elem, less_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -345,8 +345,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) {
-    //list_push_back (&ready_list, &cur->elem);
-		list_insert_ordered(&ready_list, &cur->elem, less_priority, NULL);
+    list_push_back (&ready_list, &cur->elem);
+		//list_insert_ordered(&ready_list, &cur->elem, less_priority, NULL);
 	}
   cur->status = THREAD_READY;
   schedule ();
@@ -374,10 +374,31 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-	struct list_elem *e;
-	struct thread *t;
+	struct thread* cur;
+	struct list* slave_list;
+	struct list_elem* e;
+	struct list_elem* e2;
+	struct semaphore* sema;
+	int max_priority;
+	int pri;
 
-  thread_current ()->priority = new_priority;
+	cur = thread_current();
+	max_priority = new_priority;
+
+	slave_list = &cur->slave_list;
+	for(e = list_begin(slave_list) ; e != list_end(slave_list);
+			e = list_next(e)){
+		sema = &list_entry(e, struct lock, elem)->semaphore;
+		for(e2 = list_begin(&sema->waiters) ; e2 != list_end(&sema->waiters)
+				; e2 = list_next(e2)){
+			pri = list_entry(e2, struct thread, elem)->priority;
+			max_priority = pri > max_priority ? pri : max_priority;
+		}
+	}
+
+	cur->priority = max_priority;
+
+	thread_current()->original_priority = new_priority;
 	thread_yield();
 }
 
@@ -505,6 +526,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
+	list_init(&t->slave_list);
+	t->original_priority = priority;
+	t->master_lock = NULL;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -528,13 +553,27 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-	struct list_elem *e;
-	struct thread* ready_t;
-
+	struct list_elem* e;
+	struct list_elem* ret_e = NULL;
+	int pri;
+	int ret_pri = PRI_MIN;
 	if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_back (&ready_list), struct thread, elem);
+  else{
+		for(e = list_begin(&ready_list) ; e != list_end(&ready_list) ;
+				e = list_next(e)){
+			pri = list_entry(e, struct thread, elem)->priority;
+			if (ret_e == NULL){
+				ret_e = e;
+				ret_pri = pri;
+			} else if (pri > ret_pri){
+				ret_e = e;
+				ret_pri = pri;
+			}
+		}
+		list_remove(ret_e);
+	}
+    return list_entry (ret_e, struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -624,7 +663,8 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-/* hel[er function */
+/* Hel[er function for list.
+ 	 We do not use this function for safety. */
 bool less_priority(const struct list_elem *a,
 									const struct list_elem *b, void* aux UNUSED){
 	struct thread* t_a = list_entry(a, struct thread, elem);
@@ -633,7 +673,8 @@ bool less_priority(const struct list_elem *a,
 	return t_a->priority <= t_b->priority;
 }
 
-/* Show all threads in given list  */
+/* Show all threads in ready list 
+   Should be used in gdb */
 char* show_ready_list(void){
 	struct list_elem* e;
 	struct thread* t;
