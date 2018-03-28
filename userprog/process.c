@@ -53,7 +53,12 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-	char *token, *save_ptr;
+	char *token, *save_ptr, *now_ptr;
+	int* save_ptr2;
+	int len;
+	int argc = 0;
+	int i;
+	char* esp;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -65,17 +70,71 @@ start_process (void *file_name_)
 
   success = load (file_name, &if_.eip, &if_.esp);
 
-	*(save_ptr - 1) = ' ';
-
-	for(token = strtok_r(file_name, " ", &save_ptr); token != NULL;
-			token = strtok_r(NULL, " ", &save_ptr)){
-		printf("'%s'\n", token);
-	}
-
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
+	if (!success) {
+  	palloc_free_page (file_name);
     thread_exit ();
+	}
+	else{
+		// Set stack by using void* if_.esp
+		esp = (char*)if_.esp;
+		// Reset from '\0' to ' '
+		*(save_ptr - 1) = ' ';
+
+		for(token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+				token = strtok_r(NULL, " ", &save_ptr)){
+			argc ++;
+			ASSERT(argc > 0);
+		}
+
+		// Now, save_ptr points last null address
+		// We will use save_ptr2 for save argv length
+		save_ptr2 = (int*)(save_ptr + 1);
+
+		//printf("%p, %c, %c\n", save_ptr, *(save_ptr - 1), *save_ptr);
+		for(now_ptr = save_ptr, len = 1; now_ptr >= file_name; len++, now_ptr--){
+			// Push stack each 1byte
+			esp--;
+			*esp = *now_ptr;
+			if(*(now_ptr - 1) == '\0' || now_ptr == file_name){
+				*save_ptr2 = len;
+				save_ptr2++;
+				len = 0;
+			}
+		}
+
+		// word-align and argv[argc] is NULL pointer
+		esp--;
+		len = (int)esp % 4;
+		for(len += 4;len > 0; len--, esp--)
+			*esp = '\0';
+
+		// Push stack char* argv[]
+		for(i = 0, save_ptr2 = (int*)(save_ptr + 1), now_ptr = (char*)PHYS_BASE;
+				i < argc; i++, save_ptr2++){
+			printf("%d\n", *save_ptr2);
+			now_ptr -= *save_ptr2;
+			esp -= sizeof(int);
+			*(char**)esp = now_ptr;
+		}
+
+		// Push stack char** argv, int argc and NULL pointer
+		esp -= sizeof(char***);
+		*(char***)esp = (char**)(esp + sizeof(char***));
+		esp -= sizeof(int);
+		*(int*)esp = argc;
+		esp -= sizeof(void*);
+		*(void**)esp = NULL;
+
+		// Debugging
+		/*
+		hex_dump((uintptr_t)esp, esp, (int)PHYS_BASE - (int)esp, true);
+		printf("hex_dump success\n");
+		*/
+		if_.esp = esp;
+		// Free page after all
+  	palloc_free_page (file_name);
+	}
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -449,7 +508,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
