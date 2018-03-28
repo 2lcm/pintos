@@ -111,6 +111,8 @@ sema_up (struct semaphore *sema)
   enum intr_level old_level;
 	struct list_elem* e;
 	struct thread* t;
+	struct list_elem* next_e;
+	struct thread* next_t;
 	struct list_elem* ret_e = NULL;
 
   ASSERT (sema != NULL);
@@ -134,7 +136,13 @@ sema_up (struct semaphore *sema)
 																*/
 	}
   sema->value ++;
-	thread_yield();
+	next_e = find_next_thread_elem();
+	if (next_e != NULL){
+		next_t = list_entry(next_e, struct thread, elem);
+		if (next_t->priority > thread_current()->priority){
+			thread_yield();
+		}
+	}
   intr_set_level (old_level);
 }
 

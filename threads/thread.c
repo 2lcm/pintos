@@ -226,7 +226,6 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-	thread_yield();
 
 	if (priority > thread_current()->priority){
 		thread_yield();
@@ -553,24 +552,11 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-	struct list_elem* e;
-	struct list_elem* ret_e = NULL;
-	int pri;
-	int ret_pri = PRI_MIN;
+	struct list_elem* ret_e;
 	if (list_empty (&ready_list))
     return idle_thread;
   else{
-		for(e = list_begin(&ready_list) ; e != list_end(&ready_list) ;
-				e = list_next(e)){
-			pri = list_entry(e, struct thread, elem)->priority;
-			if (ret_e == NULL){
-				ret_e = e;
-				ret_pri = pri;
-			} else if (pri > ret_pri){
-				ret_e = e;
-				ret_pri = pri;
-			}
-		}
+		ret_e = find_next_thread_elem();
 		list_remove(ret_e);
 	}
     return list_entry (ret_e, struct thread, elem);
@@ -690,4 +676,24 @@ char* show_ready_list(void){
 
 	return ret;
 
+}
+
+// return next_thread in ready_list without remove
+struct list_elem* find_next_thread_elem(void){
+	struct list_elem *e;
+	struct list_elem *ret_e = NULL;
+	int pri;
+	int ret_pri = PRI_MIN;
+	for(e = list_begin(&ready_list) ; e != list_end(&ready_list) ;
+			e = list_next(e)){
+		pri = list_entry(e, struct thread, elem)->priority;
+		if (ret_e == NULL){
+			ret_e = e;
+			ret_pri = pri;
+		} else if (pri > ret_pri){
+			ret_e = e;
+			ret_pri = pri;
+		}
+	}
+	return ret_e;
 }

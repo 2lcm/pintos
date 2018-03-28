@@ -53,13 +53,24 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+	char *token, *save_ptr;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
+	strtok_r(file_name, " ", &save_ptr);
+
   success = load (file_name, &if_.eip, &if_.esp);
+
+	*(save_ptr - 1) = ' ';
+
+	for(token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+			token = strtok_r(NULL, " ", &save_ptr)){
+		printf("'%s'\n", token);
+	}
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -88,6 +99,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+	while(1);
   return -1;
 }
 
@@ -437,7 +449,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 12;
       else
         palloc_free_page (kpage);
     }

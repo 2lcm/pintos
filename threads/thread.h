@@ -146,5 +146,6 @@ int thread_get_load_avg (void);
 
 list_less_func less_priority;
 char* show_ready_list(void);
+struct list_elem* find_next_thread_elem(void);
 
 #endif /* threads/thread.h */
