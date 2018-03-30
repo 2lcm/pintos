@@ -79,7 +79,8 @@ start_process (void *file_name_)
 		// Set stack by using void* if_.esp
 		esp = (char*)if_.esp;
 		// Reset from '\0' to ' '
-		*(save_ptr - 1) = ' ';
+		if(*save_ptr != '\0')  // no argument
+			*(save_ptr - 1) = ' ';
 
 		for(token = strtok_r(file_name, " ", &save_ptr); token != NULL;
 				token = strtok_r(NULL, " ", &save_ptr)){
@@ -112,7 +113,7 @@ start_process (void *file_name_)
 		// Push stack char* argv[]
 		for(i = 0, save_ptr2 = (int*)(save_ptr + 1), now_ptr = (char*)PHYS_BASE;
 				i < argc; i++, save_ptr2++){
-			printf("%d\n", *save_ptr2);
+			//printf("%d\n", *save_ptr2);
 			now_ptr -= *save_ptr2;
 			esp -= sizeof(int);
 			*(char**)esp = now_ptr;
@@ -127,10 +128,8 @@ start_process (void *file_name_)
 		*(void**)esp = NULL;
 
 		// Debugging
-		/*
-		hex_dump((uintptr_t)esp, esp, (int)PHYS_BASE - (int)esp, true);
-		printf("hex_dump success\n");
-		*/
+		//hex_dump((uintptr_t)esp, esp, (int)PHYS_BASE - (int)esp, true);
+		//printf("hex_dump success\n");
 		if_.esp = esp;
 		// Free page after all
   	palloc_free_page (file_name);
